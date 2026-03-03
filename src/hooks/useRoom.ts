@@ -10,15 +10,16 @@ const STORAGE_KEY = 'hidden-hunter-session';
 interface StoredSession {
   roomCode: string;
   nickname: string;
+  playerId: string;
 }
 
-function saveSession(roomCode: string, nickname: string) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ roomCode, nickname }));
+function saveSession(roomCode: string, nickname: string, playerId: string) {
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ roomCode, nickname, playerId }));
 }
 
 export function loadSession(): StoredSession | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as StoredSession;
   } catch {
@@ -27,7 +28,7 @@ export function loadSession(): StoredSession | null {
 }
 
 export function clearSession() {
-  localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
 }
 
 export function useRoom() {
@@ -125,11 +126,11 @@ export function useRoom() {
       dispatch({ type: 'CLEAR_ERROR' });
       try {
         const room = await gs.createRoom(roomCode);
-        const { player } = await gs.joinRoom(roomCode, nickname);
+        const { player } = await gs.joinRoom(roomCode, nickname, true);
         dispatch({ type: 'SET_CREDENTIALS', roomCode, nickname });
         dispatch({ type: 'SET_ROOM', room });
         dispatch({ type: 'SET_CURRENT_PLAYER', player });
-        saveSession(roomCode, nickname);
+        saveSession(roomCode, nickname, player.id);
         subscribe(room);
         await refreshPlayers(room.id);
       } catch (err: unknown) {
@@ -148,7 +149,7 @@ export function useRoom() {
         dispatch({ type: 'SET_CREDENTIALS', roomCode, nickname });
         dispatch({ type: 'SET_ROOM', room });
         dispatch({ type: 'SET_CURRENT_PLAYER', player });
-        saveSession(roomCode, nickname);
+        saveSession(roomCode, nickname, player.id);
         subscribe(room);
         await refreshPlayers(room.id);
       } catch (err: unknown) {
@@ -158,21 +159,20 @@ export function useRoom() {
     [dispatch, subscribe, refreshPlayers],
   );
 
-  // Reconnect from saved session
+  // Reconnect from saved session (uses player ID, not nickname)
   const reconnect = useCallback(async () => {
     const session = loadSession();
-    if (!session) return false;
+    if (!session || !session.playerId) {
+      clearSession();
+      return false;
+    }
     try {
-      const room = await gs.getRoom(session.roomCode);
-      if (!room || room.status === 'finished') {
+      const result = await gs.reconnectPlayer(session.roomCode, session.playerId);
+      if (!result) {
         clearSession();
         return false;
       }
-      const player = await gs.getPlayerByNickname(room.id, session.nickname);
-      if (!player) {
-        clearSession();
-        return false;
-      }
+      const { room, player } = result;
       dispatch({ type: 'SET_CREDENTIALS', roomCode: session.roomCode, nickname: session.nickname });
       dispatch({ type: 'SET_ROOM', room });
       dispatch({ type: 'SET_CURRENT_PLAYER', player });

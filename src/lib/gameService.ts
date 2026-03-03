@@ -84,25 +84,22 @@ export async function killRoom(roomId: string): Promise<void> {
 export async function joinRoom(
   roomCode: string,
   nickname: string,
+  forceHost = false,
 ): Promise<{ room: Room; player: Player }> {
   // Find or fail
   const room = await getRoom(roomCode);
   if (!room) throw new Error('Room not found');
   if (room.status !== 'waiting') throw new Error('Game already started');
 
-  // Check if already joined (reconnect)
-  const existing = await getPlayerByNickname(room.id, nickname);
-  if (existing) {
-    return { room, player: existing };
+  // Determine host: forced for room creator, otherwise check player count
+  let isHost = forceHost;
+  if (!forceHost) {
+    const { count } = await supabase
+      .from('players')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', room.id);
+    isHost = (count ?? 0) === 0;
   }
-
-  // Check if first player → host
-  const { count } = await supabase
-    .from('players')
-    .select('*', { count: 'exact', head: true })
-    .eq('room_id', room.id);
-
-  const isHost = (count ?? 0) === 0;
 
   const { data, error } = await supabase
     .from('players')
@@ -120,6 +117,23 @@ export async function joinRoom(
   }
 
   return { room, player: data as Player };
+}
+
+/**
+ * Reconnect to an existing session using the stored player ID.
+ * Returns null if the player or room no longer exist.
+ */
+export async function reconnectPlayer(
+  roomCode: string,
+  playerId: string,
+): Promise<{ room: Room; player: Player } | null> {
+  const room = await getRoom(roomCode);
+  if (!room || room.status === 'finished') return null;
+
+  const player = await getPlayerById(playerId);
+  if (!player || player.room_id !== room.id) return null;
+
+  return { room, player };
 }
 
 export async function getPlayerByNickname(
