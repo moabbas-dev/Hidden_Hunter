@@ -24,11 +24,14 @@ export function useGameLoop(
   const { state, dispatch } = useGame();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const processingRef = useRef(false);
   const lastProcessedRef = useRef<string>('');
 
+  // Live ref for room data — avoids stale closures and keeps room
+  // out of the effect dep array so realtime updates don't clear timers.
+  const roomRef = useRef(state.room);
+  useEffect(() => { roomRef.current = state.room; }, [state.room]);
+
   const isHost = state.currentPlayer?.is_host === true;
-  const room = state.room;
   const phase = state.phase;
   const round = state.round;
 
@@ -44,18 +47,16 @@ export function useGameLoop(
   }, []);
 
   useEffect(() => {
+    const room = roomRef.current;
     if (!isHost || !room) return;
 
     // Deduplicate: only process each phase+round combo once
     const phaseKey = `${phase}:${round}`;
     if (phaseKey === lastProcessedRef.current) return;
-    if (processingRef.current) return;
 
     const roomId = room.id;
 
     const runPhase = async () => {
-      if (processingRef.current) return;
-      processingRef.current = true;
       lastProcessedRef.current = phaseKey;
 
       try {
@@ -78,15 +79,17 @@ export function useGameLoop(
           case 'mission': {
             const alivePlayers = await gs.getAlivePlayers(roomId);
             const aliveCount = alivePlayers.length;
-            const missionType = room.mission_type as MissionType;
+            const cr = roomRef.current ?? room;
+            const missionType = cr.mission_type as MissionType;
+            const currentRound = cr.current_round;
 
             // Poll for submissions every 2s
             pollingRef.current = setInterval(async () => {
-              const count = await gs.getActionCount(roomId, room.current_round, 'mission');
+              const count = await gs.getActionCount(roomId, currentRound, 'mission');
               if (allSubmitted(count, aliveCount)) {
                 clearTimers();
                 const alive = await gs.getAlivePlayers(roomId);
-                await gs.autoFillMissions(roomId, room.current_round, alive, missionType);
+                await gs.autoFillMissions(roomId, currentRound, alive, missionType);
                 await gs.updateRoomPhase(roomId, 'reveal');
               }
             }, 2000);
@@ -95,7 +98,7 @@ export function useGameLoop(
             timerRef.current = setTimeout(async () => {
               clearTimers();
               const alive = await gs.getAlivePlayers(roomId);
-              await gs.autoFillMissions(roomId, room.current_round, alive, missionType);
+              await gs.autoFillMissions(roomId, currentRound, alive, missionType);
               await gs.updateRoomPhase(roomId, 'reveal');
             }, MISSION_TIMEOUT);
 
@@ -104,12 +107,13 @@ export function useGameLoop(
 
           // ── REVEAL PHASE ──────────────────────────────────
           case 'reveal': {
-            const results = await gs.getActions(roomId, room.current_round, 'mission');
+            const cr2 = roomRef.current ?? room;
+            const results = await gs.getActions(roomId, cr2.current_round, 'mission');
             const alivePlayers = await gs.getAlivePlayers(roomId);
             const playerMap = new Map(alivePlayers.map((p) => [p.id, p.nickname]));
 
-            const missionType = room.mission_type as MissionType;
-            const hiddenNumber = room.mission_hidden_number ?? null;
+            const missionType = cr2.mission_type as MissionType;
+            const hiddenNumber = cr2.mission_hidden_number ?? null;
 
             // Resolve mission winner
             const winnerId = resolveMissionWinner(missionType, results, hiddenNumber);
@@ -147,13 +151,14 @@ export function useGameLoop(
           case 'attack': {
             const alivePlayers = await gs.getAlivePlayers(roomId);
             const aliveCount = alivePlayers.length;
+            const atkRound = (roomRef.current ?? room).current_round;
 
             pollingRef.current = setInterval(async () => {
-              const count = await gs.getActionCount(roomId, room.current_round, 'attack');
+              const count = await gs.getActionCount(roomId, atkRound, 'attack');
               if (allSubmitted(count, aliveCount)) {
                 clearTimers();
                 const alive = await gs.getAlivePlayers(roomId);
-                await gs.autoFillAttacks(roomId, room.current_round, alive);
+                await gs.autoFillAttacks(roomId, atkRound, alive);
                 await gs.updateRoomPhase(roomId, 'damage_resolution');
               }
             }, 2000);
@@ -161,7 +166,7 @@ export function useGameLoop(
             timerRef.current = setTimeout(async () => {
               clearTimers();
               const alive = await gs.getAlivePlayers(roomId);
-              await gs.autoFillAttacks(roomId, room.current_round, alive);
+              await gs.autoFillAttacks(roomId, atkRound, alive);
               await gs.updateRoomPhase(roomId, 'damage_resolution');
             }, ATTACK_TIMEOUT);
 
@@ -170,7 +175,7 @@ export function useGameLoop(
 
           // ── DAMAGE RESOLUTION ─────────────────────────────
           case 'damage_resolution': {
-            const reports = await gs.applyDamage(roomId, room.current_round);
+            const reports = await gs.applyDamage(roomId, (roomRef.current ?? room).current_round);
             broadcast({ type: 'DAMAGE_REPORT', reports });
             dispatch({ type: 'SET_DAMAGE_REPORTS', reports });
 
@@ -209,7 +214,7 @@ export function useGameLoop(
           // ── NEXT ROUND ────────────────────────────────────
           case 'next_round': {
             await gs.rebuildTargetChain(roomId);
-            const nextRound = room.current_round + 1;
+            const nextRound = (roomRef.current ?? room).current_round + 1;
             const mission = getRandomMission();
             const hiddenNumber = generateHiddenNumber(mission);
             // Dispatch round reset to clear stale round-scoped state
@@ -229,8 +234,6 @@ export function useGameLoop(
         console.error('[GameLoop] Error in phase', phase, err);
         // Allow retry on error
         lastProcessedRef.current = '';
-      } finally {
-        processingRef.current = false;
       }
     };
 
@@ -239,20 +242,24 @@ export function useGameLoop(
     return () => {
       clearTimers();
     };
-  }, [isHost, phase, round, broadcast, dispatch, clearTimers, room]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, phase, round, broadcast, dispatch, clearTimers]);
 
   // Host promotion check (non-host only) — runs every 5s
   useEffect(() => {
+    const room = roomRef.current;
     if (isHost || !room || room.status !== 'playing') return;
 
+    const roomId = room.id;
     const interval = setInterval(async () => {
-      const players = await gs.getAlivePlayers(room.id);
+      const players = await gs.getAlivePlayers(roomId);
       const currentHost = players.find((p) => p.is_host);
       if (!currentHost || !currentHost.is_alive) {
-        await gs.promoteNextHost(room.id);
+        await gs.promoteNextHost(roomId);
       }
     }, 5_000);
 
     return () => clearInterval(interval);
-  }, [isHost, room]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, phase]);
 }

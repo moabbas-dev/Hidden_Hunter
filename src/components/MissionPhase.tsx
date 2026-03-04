@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactElement } from 'react';
-import { Check, Trophy, Hash, Swords as SwordsIcon, Sparkles, Flame, Droplets, Leaf, Zap, Moon, Sun, Gem, FileText, Scissors } from 'lucide-react';
+import { Check, Eye, Trophy, Hash, Swords as SwordsIcon, Sparkles, Flame, Droplets, Leaf, Zap, Moon, Sun, Gem, FileText, Scissors } from 'lucide-react';
 import { SYMBOLS, MISSION_INFO, type MissionType } from '../lib/stateMachine';
 import styles from './MissionPhase.module.css';
 
@@ -30,6 +30,7 @@ interface Props {
   hasSubmitted: boolean;
   submitting: boolean;
   onSubmit: (value: string | number) => void;
+  spectator?: boolean;
 }
 
 export function MissionPhase({
@@ -38,6 +39,7 @@ export function MissionPhase({
   hasSubmitted,
   submitting,
   onSubmit,
+  spectator,
 }: Props) {
   const [secondsLeft, setSecondsLeft] = useState(Math.ceil(timeoutMs / 1000));
   const [numberValue, setNumberValue] = useState('');
@@ -56,8 +58,10 @@ export function MissionPhase({
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.submitted}>
-            <span className={styles.checkmark}><Check size={32} /></span>
-            <p>Submitted! Waiting for others...</p>
+            <span className={styles.checkmark}>
+              {spectator ? <Eye size={32} /> : <Check size={32} />}
+            </span>
+            <p>{spectator ? 'Spectating — Mission in progress...' : 'Submitted! Waiting for others...'}</p>
           </div>
           <div className={styles.timer}>{secondsLeft}s</div>
         </div>

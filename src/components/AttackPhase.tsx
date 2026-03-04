@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Swords, Crosshair, Trophy, Heart, Check } from 'lucide-react';
+import { Swords, Crosshair, Trophy, Heart, Eye } from 'lucide-react';
 import type { Player } from '../lib/stateMachine';
 import styles from './AttackPhase.module.css';
 
@@ -10,6 +10,7 @@ interface Props {
   hasSubmitted: boolean;
   submitting: boolean;
   onSubmit: (targetPlayerId: string) => void;
+  spectator?: boolean;
 }
 
 export function AttackPhase({
@@ -19,6 +20,7 @@ export function AttackPhase({
   hasSubmitted,
   submitting,
   onSubmit,
+  spectator,
 }: Props) {
   const [secondsLeft, setSecondsLeft] = useState(Math.ceil(timeoutMs / 1000));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,8 +43,10 @@ export function AttackPhase({
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.submitted}>
-            <span className={styles.checkmark}><Swords size={32} /></span>
-            <p>Attack submitted! Waiting for others...</p>
+            <span className={styles.checkmark}>
+              {spectator ? <Eye size={32} /> : <Swords size={32} />}
+            </span>
+            <p>{spectator ? 'Spectating — Players choosing targets...' : 'Attack submitted! Waiting for others...'}</p>
           </div>
           <div className={styles.timer}>{secondsLeft}s</div>
         </div>
