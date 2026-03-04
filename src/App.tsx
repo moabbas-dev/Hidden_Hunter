@@ -22,6 +22,7 @@ function GameApp() {
     reconnect,
     leaveRoom,
     leaveWaitingRoom,
+    leaveMidGame,
     killRoom,
     broadcast,
   } = useRoom();
@@ -43,6 +44,38 @@ function GameApp() {
     reconnect().finally(() => setReconnecting(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Mark player as left when closing during an active game
+  useEffect(() => {
+    const handleUnload = () => {
+      if (state.room && state.currentPlayer && state.room.status === 'playing') {
+        // Use sendBeacon for best-effort async leave on tab close
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/players?id=eq.${state.currentPlayer.id}`;
+        const headers = {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        };
+        navigator.sendBeacon(
+          url,
+          new Blob(
+            [JSON.stringify({ is_alive: false, is_host: false })],
+            { type: 'application/json' },
+          ),
+        );
+        // sendBeacon doesn't support PATCH, so we also try fetch as fallback
+        fetch(url, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ is_alive: false, is_host: false }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [state.room, state.currentPlayer]);
 
   if (reconnecting) {
     return (
@@ -66,6 +99,7 @@ function GameApp() {
 
   const { phase, room, currentPlayer, players } = state;
   const alivePlayers = players.filter((p) => p.is_alive);
+  const isAlive = currentPlayer.is_alive;
 
   // Phase-based routing
   switch (phase) {
@@ -93,13 +127,21 @@ function GameApp() {
     case 'mission':
       return (
         <div className="game-layout">
-          <MissionPhase
-            missionType={state.missionType ?? 'number_1_100'}
-            timeoutMs={MISSION_TIMEOUT}
-            hasSubmitted={hasSubmittedMission}
-            submitting={submitting}
-            onSubmit={submitMission}
-          />
+          {isAlive ? (
+            <MissionPhase
+              missionType={state.missionType ?? 'number_1_100'}
+              timeoutMs={MISSION_TIMEOUT}
+              hasSubmitted={hasSubmittedMission}
+              submitting={submitting}
+              onSubmit={submitMission}
+            />
+          ) : (
+            <div className="spectator-banner">
+              <span className="spectator-icon">👻</span>
+              <h2>You have been eliminated</h2>
+              <p>Watching the mission phase...</p>
+            </div>
+          )}
           <aside className="sidebar">
             <div className="round-badge">Round {state.round}</div>
             <PlayerList
@@ -116,6 +158,9 @@ function GameApp() {
           <RevealPhase
             results={(state.roundResults ?? []) as { playerId: string; nickname: string; value: unknown }[]}
             missionType={state.missionType ?? 'number_1_100'}
+            winnerId={state.missionWinnerId ?? undefined}
+            winnerNickname={state.missionWinnerNickname ?? undefined}
+            hiddenNumber={state.hiddenNumber ?? undefined}
           />
           <aside className="sidebar">
             <div className="round-badge">Round {state.round}</div>
@@ -130,14 +175,22 @@ function GameApp() {
     case 'attack':
       return (
         <div className="game-layout">
-          <AttackPhase
-            alivePlayers={alivePlayers}
-            currentPlayer={currentPlayer}
-            timeoutMs={ATTACK_TIMEOUT}
-            hasSubmitted={hasSubmittedAttack}
-            submitting={submitting}
-            onSubmit={submitAttack}
-          />
+          {isAlive ? (
+            <AttackPhase
+              alivePlayers={alivePlayers}
+              currentPlayer={currentPlayer}
+              timeoutMs={ATTACK_TIMEOUT}
+              hasSubmitted={hasSubmittedAttack}
+              submitting={submitting}
+              onSubmit={submitAttack}
+            />
+          ) : (
+            <div className="spectator-banner">
+              <span className="spectator-icon">👻</span>
+              <h2>You have been eliminated</h2>
+              <p>Watching the attack phase...</p>
+            </div>
+          )}
           <aside className="sidebar">
             <div className="round-badge">Round {state.round}</div>
             <PlayerList

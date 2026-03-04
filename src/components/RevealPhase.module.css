@@ -42,6 +42,10 @@
 }
 
 .title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text);
@@ -63,11 +67,24 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.75rem 1rem;
+  transition: border-color 0.2s;
+}
+
+.winnerRow {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.06);
 }
 
 .playerName {
   font-weight: 600;
   color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.crownIcon {
+  font-size: 1rem;
 }
 
 .value {
@@ -75,6 +92,44 @@
   font-size: 1.125rem;
   font-weight: 700;
   color: var(--accent);
+}
+
+.hiddenNumber {
+  text-align: center;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: rgba(99, 102, 241, 0.06);
+  border-radius: 8px;
+}
+
+.hiddenNumber strong {
+  color: var(--accent);
+  font-size: 1.125rem;
+}
+
+.winnerBanner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.noWinner {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  padding: 0.5rem;
 }
 
 @keyframes fadeIn {

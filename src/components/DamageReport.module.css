@@ -82,7 +82,11 @@
 
 .shieldBadge,
 .immunityBadge,
-.eliminatedBadge {
+.eliminatedBadge,
+.bonusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.6875rem;
   font-weight: 600;
   padding: 0.125rem 0.375rem;
@@ -99,6 +103,11 @@
   background: rgba(99, 102, 241, 0.1);
 }
 
+.bonusBadge {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
 .eliminatedBadge {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.1);
@@ -112,15 +121,25 @@
 }
 
 .attacks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 0.875rem;
   font-weight: 700;
   color: #ef4444;
 }
 
+.blockedText {
+  font-size: 0.75rem;
+  color: #3b82f6;
+  font-style: italic;
+}
+
 .livesLeft {
-  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--text-muted);
-  letter-spacing: 0.05em;
 }
 
 @keyframes fadeIn {

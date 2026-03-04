@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Shield, Crosshair, Trophy, Skull, Heart } from 'lucide-react';
 import type { DamageReport } from '../lib/gameService';
 import { DAMAGE_REPORT_DURATION } from '../lib/stateMachine';
 import styles from './DamageReport.module.css';
@@ -37,25 +38,37 @@ export function DamageReportView({ reports }: Props) {
                 <span className={styles.name}>{r.nickname}</span>
                 <div className={styles.badges}>
                   {r.damageBlocked && (
-                    <span className={styles.shieldBadge}>🛡️ Blocked</span>
+                    <span className={styles.shieldBadge}><Shield size={12} /> Blocked</span>
                   )}
                   {r.gainedImmunity && (
-                    <span className={styles.immunityBadge}>🎯 Immunity!</span>
+                    <span className={styles.immunityBadge}><Crosshair size={12} /> Immunity gained!</span>
+                  )}
+                  {r.hadBonusDamage && (
+                    <span className={styles.bonusBadge}><Trophy size={12} /> Bonus DMG</span>
                   )}
                   {r.eliminated && (
-                    <span className={styles.eliminatedBadge}>💀 Eliminated</span>
+                    <span className={styles.eliminatedBadge}><Skull size={12} /> Eliminated</span>
                   )}
                 </div>
               </div>
               <div className={styles.reportStats}>
-                {r.attacksReceived > 0 && (
+                {r.totalDamage > 0 && (
                   <span className={styles.attacks}>
-                    -{r.damageBlocked ? 0 : r.attacksReceived} ♥
+                    -{r.totalDamage} <Heart size={12} fill="currentColor" />
+                  </span>
+                )}
+                {r.damageBlocked && r.attacksReceived > 0 && (
+                  <span className={styles.blockedText}>
+                    ({r.attacksReceived} blocked)
                   </span>
                 )}
                 <span className={styles.livesLeft}>
-                  {'♥'.repeat(r.livesRemaining)}
-                  {'♡'.repeat(Math.max(0, 3 - r.livesRemaining))}
+                  {Array.from({ length: r.livesRemaining }).map((_, i) => (
+                    <Heart key={`f${i}`} size={14} fill="currentColor" />
+                  ))}
+                  {Array.from({ length: Math.max(0, 3 - r.livesRemaining) }).map((_, i) => (
+                    <Heart key={`e${i}`} size={14} />
+                  ))}
                 </span>
               </div>
             </div>

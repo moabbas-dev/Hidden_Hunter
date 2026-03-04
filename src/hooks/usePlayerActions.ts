@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
 import * as gs from '../lib/gameService';
+import type { MissionPayload } from '../lib/stateMachine';
 
 export function usePlayerActions() {
   const { state } = useGame();
@@ -20,15 +21,16 @@ export function usePlayerActions() {
 
   const submitMission = useCallback(
     async (value: string | number) => {
-      if (!state.room || !state.currentPlayer || hasSubmittedMission || submitting) return;
+      if (!state.room || !state.currentPlayer || !state.currentPlayer.is_alive || hasSubmittedMission || submitting) return;
       setSubmitting(true);
       try {
+        const payload: MissionPayload = { value: value as MissionPayload['value'] };
         await gs.submitAction(
           state.room.id,
           state.room.current_round,
           state.currentPlayer.id,
           'mission',
-          { value },
+          payload,
         );
         setHasSubmittedMission(true);
       } catch (err) {
@@ -42,7 +44,7 @@ export function usePlayerActions() {
 
   const submitAttack = useCallback(
     async (targetPlayerId: string) => {
-      if (!state.room || !state.currentPlayer || hasSubmittedAttack || submitting) return;
+      if (!state.room || !state.currentPlayer || !state.currentPlayer.is_alive || hasSubmittedAttack || submitting) return;
       if (targetPlayerId === state.currentPlayer.id) return; // Cannot attack self
       setSubmitting(true);
       try {

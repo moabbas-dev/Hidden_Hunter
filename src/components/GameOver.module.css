@@ -19,7 +19,10 @@
 }
 
 .crown {
-  font-size: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f59e0b;
   margin-bottom: 0.5rem;
   animation: bounce 0.8s ease-in-out;
 }
@@ -97,6 +100,9 @@
 }
 
 .lives {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-size: 0.9375rem;
   color: #ef4444;
 }

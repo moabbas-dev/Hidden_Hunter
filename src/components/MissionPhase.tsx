@@ -1,6 +1,28 @@
-import { useState, useEffect } from 'react';
-import { SYMBOLS } from '../lib/stateMachine';
+import { useState, useEffect, type ReactElement } from 'react';
+import { Check, Trophy, Hash, Swords as SwordsIcon, Sparkles, Flame, Droplets, Leaf, Zap, Moon, Sun, Gem, FileText, Scissors } from 'lucide-react';
+import { SYMBOLS, MISSION_INFO, type MissionType } from '../lib/stateMachine';
 import styles from './MissionPhase.module.css';
+
+const MISSION_ICONS: Record<string, ReactElement> = {
+  number_1_100: <Hash size={20} />,
+  rock_paper_scissors: <SwordsIcon size={20} />,
+  symbol_pick: <Sparkles size={20} />,
+};
+
+const SYMBOL_ICONS: Record<string, ReactElement> = {
+  flame: <Flame size={24} />,
+  droplet: <Droplets size={24} />,
+  leaf: <Leaf size={24} />,
+  zap: <Zap size={24} />,
+  moon: <Moon size={24} />,
+  sun: <Sun size={24} />,
+};
+
+const RPS_ICONS: Record<string, ReactElement> = {
+  rock: <Gem size={24} />,
+  paper: <FileText size={24} />,
+  scissors: <Scissors size={24} />,
+};
 
 interface Props {
   missionType: string;
@@ -27,19 +49,14 @@ export function MissionPhase({
     return () => clearInterval(interval);
   }, []);
 
-  const missionLabel =
-    missionType === 'number_1_100'
-      ? 'Pick a Number (1–100)'
-      : missionType === 'rock_paper_scissors'
-        ? 'Rock, Paper, Scissors'
-        : 'Pick a Symbol';
+  const info = MISSION_INFO[missionType as MissionType] ?? MISSION_INFO.number_1_100;
 
   if (hasSubmitted) {
     return (
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.submitted}>
-            <span className={styles.checkmark}>✓</span>
+            <span className={styles.checkmark}><Check size={32} /></span>
             <p>Submitted! Waiting for others...</p>
           </div>
           <div className={styles.timer}>{secondsLeft}s</div>
@@ -56,7 +73,9 @@ export function MissionPhase({
           <div className={styles.timer}>{secondsLeft}s</div>
         </div>
 
-        <h2 className={styles.title}>{missionLabel}</h2>
+        <h2 className={styles.title}>{MISSION_ICONS[missionType as MissionType]} {info.label}</h2>
+        <p className={styles.description}>{info.description}</p>
+        <div className={styles.reward}><Trophy size={16} /> {info.reward}</div>
 
         {missionType === 'number_1_100' && (
           <div className={styles.numberForm}>
@@ -95,7 +114,7 @@ export function MissionPhase({
                 onClick={() => onSubmit(choice)}
               >
                 <span className={styles.choiceEmoji}>
-                  {choice === 'rock' ? '🪨' : choice === 'paper' ? '📄' : '✂️'}
+                  {RPS_ICONS[choice]}
                 </span>
                 <span className={styles.choiceLabel}>{choice}</span>
               </button>
@@ -112,7 +131,7 @@ export function MissionPhase({
                 disabled={submitting}
                 onClick={() => onSubmit(symbol)}
               >
-                {symbol}
+                {SYMBOL_ICONS[symbol] ?? symbol}
               </button>
             ))}
           </div>

@@ -1,3 +1,4 @@
+import { Heart } from 'lucide-react';
 import type { Player } from '../lib/stateMachine';
 import styles from './PlayerList.module.css';
 
@@ -34,7 +35,7 @@ export function PlayerList({ players, currentPlayerId, showLives = true }: Props
                   key={i}
                   className={`${styles.heart} ${i < player.lives ? styles.heartFull : styles.heartEmpty}`}
                 >
-                  ♥
+                  <Heart size={14} fill={i < player.lives ? 'currentColor' : 'none'} />
                 </span>
               ))}
             </div>

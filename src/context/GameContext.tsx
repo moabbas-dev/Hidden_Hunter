@@ -14,6 +14,9 @@ export interface GameState {
   round: number;
   missionType: string | null;
   roundResults: Record<string, unknown>[] | null;
+  missionWinnerId: string | null;
+  missionWinnerNickname: string | null;
+  hiddenNumber: number | null;
   damageReports: DamageReport[] | null;
   eliminatedIds: string[];
   winnerId: string | null;
@@ -30,6 +33,9 @@ const initialState: GameState = {
   round: 0,
   missionType: null,
   roundResults: null,
+  missionWinnerId: null,
+  missionWinnerNickname: null,
+  hiddenNumber: null,
   damageReports: null,
   eliminatedIds: [],
   winnerId: null,
@@ -43,12 +49,13 @@ export type GameAction =
   | { type: 'SET_PLAYERS'; players: Player[] }
   | { type: 'SET_CURRENT_PLAYER'; player: Player }
   | { type: 'SET_CREDENTIALS'; roomCode: string; nickname: string }
-  | { type: 'SET_ROUND_RESULTS'; results: Record<string, unknown>[] }
+  | { type: 'SET_ROUND_RESULTS'; results: Record<string, unknown>[]; winnerId?: string | null; winnerNickname?: string | null; hiddenNumber?: number | null }
   | { type: 'SET_DAMAGE_REPORTS'; reports: DamageReport[] }
   | { type: 'SET_ELIMINATED'; ids: string[] }
   | { type: 'SET_WINNER'; winnerId: string }
   | { type: 'SET_ERROR'; error: string }
   | { type: 'CLEAR_ERROR' }
+  | { type: 'RESET_ROUND' }
   | { type: 'RESET' };
 
 // ── Reducer ──────────────────────────────────────────────────
@@ -74,7 +81,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_CREDENTIALS':
       return { ...state, roomCode: action.roomCode, nickname: action.nickname };
     case 'SET_ROUND_RESULTS':
-      return { ...state, roundResults: action.results };
+      return {
+        ...state,
+        roundResults: action.results,
+        missionWinnerId: action.winnerId ?? null,
+        missionWinnerNickname: action.winnerNickname ?? null,
+        hiddenNumber: action.hiddenNumber ?? null,
+      };
     case 'SET_DAMAGE_REPORTS':
       return { ...state, damageReports: action.reports };
     case 'SET_ELIMINATED':
@@ -85,6 +98,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, error: action.error };
     case 'CLEAR_ERROR':
       return { ...state, error: null };
+    case 'RESET_ROUND':
+      return {
+        ...state,
+        roundResults: null,
+        missionWinnerId: null,
+        missionWinnerNickname: null,
+        hiddenNumber: null,
+        damageReports: null,
+        eliminatedIds: [],
+      };
     case 'RESET':
       return initialState;
     default:

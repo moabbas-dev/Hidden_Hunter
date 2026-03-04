@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
-import type { Room, Player, RoundAction } from './stateMachine';
-import { generateRandomMissionPayload, type MissionType, type Phase } from './stateMachine';
+import type { Room, Player, RoundAction, MissionPayload } from './stateMachine';
+import { generateRandomMissionPayload, getAttackTargetId, type MissionType, type Phase } from './stateMachine';
 
 // ── Room Operations ──────────────────────────────────────────
 
@@ -42,7 +42,7 @@ export async function getRoomById(roomId: string): Promise<Room | null> {
 export async function updateRoomPhase(
   roomId: string,
   phase: Phase,
-  extras?: Partial<Pick<Room, 'current_round' | 'mission_type' | 'status'>>,
+  extras?: Partial<Pick<Room, 'current_round' | 'mission_type' | 'mission_hidden_number' | 'status'>>,
 ): Promise<void> {
   const { error } = await supabase
     .from('rooms')
@@ -67,6 +67,30 @@ export async function leavePlayer(playerId: string, roomId: string): Promise<voi
       .from('players')
       .update({ is_host: true })
       .eq('id', remaining[0].id);
+  }
+}
+
+/**
+ * Mark a player as left mid-game (set is_alive=false, clear host).
+ * Should be called when a player disconnects or leaves during an active game.
+ * Immediately promotes a new host if the leaving player was host.
+ */
+export async function markPlayerLeft(playerId: string, roomId: string): Promise<void> {
+  const player = await getPlayerById(playerId);
+  if (!player) return;
+
+  const { error } = await supabase
+    .from('players')
+    .update({ is_alive: false, is_host: false })
+    .eq('id', playerId);
+  if (error) throw error;
+
+  // Rebuild target chain since a player left
+  await rebuildTargetChain(roomId);
+
+  // Immediately promote new host if the leaving player was host
+  if (player.is_host) {
+    await promoteNextHost(roomId);
   }
 }
 
@@ -212,7 +236,7 @@ export async function submitAction(
   roundNumber: number,
   playerId: string,
   actionType: 'mission' | 'attack',
-  payload: Record<string, unknown>,
+  payload: MissionPayload | { target_id: string },
 ): Promise<RoundAction> {
   const { data, error } = await supabase
     .from('round_actions')
@@ -286,6 +310,12 @@ export async function autoFillAttacks(
   roundNumber: number,
   alivePlayers: Player[],
 ): Promise<void> {
+  // Safety guard: auto-fill only valid with 2+ alive players
+  if (alivePlayers.length < 2) {
+    console.warn('[autoFillAttacks] Skipped — fewer than 2 alive players');
+    return;
+  }
+
   const existing = await getActions(roomId, roundNumber, 'attack');
   const submittedIds = new Set(existing.map((a) => a.player_id));
 
@@ -293,6 +323,7 @@ export async function autoFillAttacks(
     if (!submittedIds.has(player.id)) {
       // Pick a random alive player that is not self
       const targets = alivePlayers.filter((p) => p.id !== player.id);
+      if (targets.length === 0) continue; // extra safety
       const target = targets[Math.floor(Math.random() * targets.length)];
       await submitAction(roomId, roundNumber, player.id, 'attack', {
         target_id: target.id,
@@ -307,10 +338,12 @@ export interface DamageReport {
   playerId: string;
   nickname: string;
   attacksReceived: number;
+  totalDamage: number;
   damageBlocked: boolean;
   livesRemaining: number;
   eliminated: boolean;
   gainedImmunity: boolean;
+  hadBonusDamage: boolean;
 }
 
 export async function applyDamage(
@@ -321,22 +354,37 @@ export async function applyDamage(
   const alivePlayers = await getAlivePlayers(roomId);
   const playerMap = new Map(alivePlayers.map((p) => [p.id, { ...p }]));
 
-  // Count attacks on each player
+  // Calculate damage dealt TO each player
+  // damage per attack depends on:
+  //   - secret target hit → 2 base damage
+  //   - regular hit → 1 base damage
+  //   - bonus_damage from mission win → +1 extra damage
+  const damageReceived = new Map<string, number>();
   const attackCount = new Map<string, number>();
   const attackerTargets = new Map<string, string>(); // attackerId → targetId
 
   for (const action of attacks) {
-    const targetId = action.payload.target_id as string;
-    attackerTargets.set(action.player_id, targetId);
+    const attackerId = action.player_id;
+    const targetId = getAttackTargetId(action);
+    const attacker = playerMap.get(attackerId);
+    if (!attacker) continue;
+
+    attackerTargets.set(attackerId, targetId);
     attackCount.set(targetId, (attackCount.get(targetId) ?? 0) + 1);
+
+    // Calculate damage this attack deals
+    const isSecretTarget = attacker.target_id === targetId;
+    let dmg = isSecretTarget ? 2 : 1; // Secret target = 2 dmg, else 1
+    if (attacker.bonus_damage) dmg += 1; // Mission winner bonus
+
+    damageReceived.set(targetId, (damageReceived.get(targetId) ?? 0) + dmg);
   }
 
-  // Track who had immunity this round (to reset AFTER processing)
+  // Track immunity
   const hadImmunity = new Set<string>();
-  // Track who gains immunity from hitting secret target
   const gainsImmunity = new Set<string>();
 
-  // Check who hit their secret target → gains immunity for next round
+  // Players who hit their secret target gain immunity for next round
   for (const [attackerId, targetId] of attackerTargets) {
     const attacker = playerMap.get(attackerId);
     if (attacker && attacker.target_id === targetId) {
@@ -349,32 +397,36 @@ export async function applyDamage(
   for (const player of alivePlayers) {
     const p = playerMap.get(player.id)!;
     const received = attackCount.get(p.id) ?? 0;
+    const totalDmg = damageReceived.get(p.id) ?? 0;
     const blocked = p.immunity;
 
     if (blocked) {
       hadImmunity.add(p.id);
     }
 
-    const damage = blocked ? 0 : received;
-    const newLives = p.lives - damage;
+    const actualDamage = blocked ? 0 : totalDmg;
+    const newLives = p.lives - actualDamage;
     const eliminated = newLives <= 0;
 
     reports.push({
       playerId: p.id,
       nickname: p.nickname,
       attacksReceived: received,
+      totalDamage: actualDamage,
       damageBlocked: blocked,
       livesRemaining: Math.max(0, newLives),
       eliminated,
       gainedImmunity: gainsImmunity.has(p.id),
+      hadBonusDamage: p.bonus_damage,
     });
 
     // Update player in DB
     const updatePayload: Record<string, unknown> = {
       lives: Math.max(0, newLives),
+      bonus_damage: false, // Always reset bonus after attack phase
     };
 
-    // Set immunity: true if gained from secret target hit, false if used this round, otherwise keep
+    // Set immunity: true if gained from secret target hit, false if used this round
     if (gainsImmunity.has(p.id)) {
       updatePayload.immunity = true;
     } else if (hadImmunity.has(p.id)) {
@@ -389,6 +441,29 @@ export async function applyDamage(
   }
 
   return reports;
+}
+
+// ── Mission Bonus ────────────────────────────────────────────
+
+/**
+ * Award bonus_damage to the mission winner.
+ */
+export async function awardMissionBonus(
+  roomId: string,
+  winnerId: string,
+): Promise<void> {
+  // Reset all bonus_damage first
+  await supabase
+    .from('players')
+    .update({ bonus_damage: false })
+    .eq('room_id', roomId);
+
+  // Set winner's bonus
+  const { error } = await supabase
+    .from('players')
+    .update({ bonus_damage: true })
+    .eq('id', winnerId);
+  if (error) throw error;
 }
 
 // ── Elimination ──────────────────────────────────────────────
@@ -407,6 +482,12 @@ export async function eliminatePlayers(roomId: string): Promise<string[]> {
   const eliminatedIds = (eliminated ?? []).map((p: Player) => p.id);
 
   if (eliminatedIds.length > 0) {
+    // If an eliminated player was the host, promote a new host immediately
+    const wasHost = (eliminated ?? []).some((p: Player) => p.is_host);
+    if (wasHost) {
+      await promoteNextHost(roomId);
+    }
+
     await rebuildTargetChain(roomId);
   }
 

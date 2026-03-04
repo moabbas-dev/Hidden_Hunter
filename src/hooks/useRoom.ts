@@ -86,7 +86,13 @@ export function useRoom() {
         if (!payload) return;
         switch (payload.type) {
           case 'ROUND_RESULTS':
-            dispatch({ type: 'SET_ROUND_RESULTS', results: payload.results });
+            dispatch({
+              type: 'SET_ROUND_RESULTS',
+              results: payload.results,
+              winnerId: payload.winnerId ?? null,
+              winnerNickname: payload.winnerNickname ?? null,
+              hiddenNumber: payload.hiddenNumber ?? null,
+            });
             break;
           case 'DAMAGE_REPORT':
             dispatch({ type: 'SET_DAMAGE_REPORTS', reports: payload.reports });
@@ -207,6 +213,18 @@ export function useRoom() {
     leaveRoom();
   }, [state.currentPlayer, state.room, leaveRoom]);
 
+  // Leave mid-game (mark player dead + promote host if needed, then reset local)
+  const leaveMidGame = useCallback(async () => {
+    if (state.currentPlayer && state.room) {
+      try {
+        await gs.markPlayerLeft(state.currentPlayer.id, state.room.id);
+      } catch (err) {
+        console.error('Failed to leave mid-game:', err);
+      }
+    }
+    leaveRoom();
+  }, [state.currentPlayer, state.room, leaveRoom]);
+
   // Kill room (host only — deletes room + all players)
   const killRoom = useCallback(async () => {
     if (state.room) {
@@ -235,6 +253,7 @@ export function useRoom() {
     reconnect,
     leaveRoom,
     leaveWaitingRoom,
+    leaveMidGame,
     killRoom,
     broadcast,
     refreshPlayers,

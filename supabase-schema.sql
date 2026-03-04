@@ -33,6 +33,7 @@ create table if not exists rooms (
       'rock_paper_scissors',
       'symbol_pick'
     )),
+  mission_hidden_number integer default null,
   created_at timestamptz default now()
 );
 
@@ -47,6 +48,7 @@ create table if not exists players (
   is_alive boolean not null default true,
   target_id uuid default null references players(id) on delete set null,
   immunity boolean not null default false,
+  bonus_damage boolean not null default false,
   is_host boolean not null default false,
   created_at timestamptz default now(),
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Swords, Crosshair, Trophy, Heart, Check } from 'lucide-react';
 import type { Player } from '../lib/stateMachine';
 import styles from './AttackPhase.module.css';
 
@@ -33,13 +34,14 @@ export function AttackPhase({
   const secretTargetName = alivePlayers.find(
     (p) => p.id === currentPlayer.target_id,
   )?.nickname;
+  const hasBonusDamage = currentPlayer.bonus_damage;
 
   if (hasSubmitted) {
     return (
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.submitted}>
-            <span className={styles.checkmark}>⚔️</span>
+            <span className={styles.checkmark}><Swords size={32} /></span>
             <p>Attack submitted! Waiting for others...</p>
           </div>
           <div className={styles.timer}>{secondsLeft}s</div>
@@ -58,13 +60,20 @@ export function AttackPhase({
 
         <h2 className={styles.title}>Choose your target</h2>
 
+        <div className={styles.rulesBox}>
+          <div className={styles.rule}><Swords size={14} /> Regular target: <strong>1 damage</strong></div>
+          <div className={styles.rule}><Crosshair size={14} /> Secret target: <strong>2 damage + immunity</strong></div>
+          {hasBonusDamage && (
+            <div className={styles.bonusActive}><Trophy size={14} /> You have +1 bonus damage from mission win!</div>
+          )}
+        </div>
+
         {secretTargetName && (
           <div className={styles.secretHint}>
-            <span className={styles.secretIcon}>🎯</span>
+            <span className={styles.secretIcon}><Crosshair size={18} /></span>
             <span>
               Your secret target: <strong>{secretTargetName}</strong>
             </span>
-            <span className={styles.secretNote}>Hit for immunity!</span>
           </div>
         )}
 
@@ -80,10 +89,12 @@ export function AttackPhase({
             >
               <span className={styles.targetName}>{player.nickname}</span>
               <span className={styles.targetLives}>
-                {'♥'.repeat(player.lives)}
+                {Array.from({ length: player.lives }).map((_, i) => (
+                  <Heart key={i} size={14} fill="currentColor" />
+                ))}
               </span>
               {player.id === currentPlayer.target_id && (
-                <span className={styles.targetBadge}>🎯</span>
+                <span className={styles.targetBadge}><Crosshair size={14} /></span>
               )}
             </button>
           ))}

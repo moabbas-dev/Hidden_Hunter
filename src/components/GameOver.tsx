@@ -1,3 +1,4 @@
+import { Crown, Heart, Skull } from 'lucide-react';
 import type { Player } from '../lib/stateMachine';
 import styles from './GameOver.module.css';
 
@@ -13,7 +14,7 @@ export function GameOver({ winnerId, players, onLeave }: Props) {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
-        <div className={styles.crown}>👑</div>
+        <div className={styles.crown}><Crown size={48} /></div>
         <h1 className={styles.title}>Game Over</h1>
 
         {winner ? (
@@ -37,8 +38,10 @@ export function GameOver({ winnerId, players, onLeave }: Props) {
                 <span className={styles.rank}>#{i + 1}</span>
                 <span className={styles.name}>{p.nickname}</span>
                 <span className={styles.lives}>
-                  {'♥'.repeat(Math.max(0, p.lives))}
-                  {p.lives <= 0 && '💀'}
+                  {Array.from({ length: Math.max(0, p.lives) }).map((_, i) => (
+                    <Heart key={i} size={14} fill="currentColor" />
+                  ))}
+                  {p.lives <= 0 && <Skull size={14} />}
                 </span>
               </div>
             ))}

@@ -45,8 +45,40 @@
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text);
-  margin: 0 0 1rem;
+  margin: 0 0 0.75rem;
   text-align: center;
+}
+
+.rulesBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.rule strong {
+  color: var(--text);
+}
+
+.bonusActive {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 0.8125rem;
 }
 
 .secretHint {
@@ -119,9 +151,11 @@
 }
 
 .targetLives {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: #ef4444;
   font-size: 0.875rem;
-  letter-spacing: 0.1em;
 }
 
 .targetBadge {
